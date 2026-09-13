@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Yuniko UI"
+description = "Une application web responsive qui reprend fidèlement l’interface, les styles et les animations du frontend Yuniko, sans services métier."
+version = "1.0.0"
+id = "artifacts/yuniko-app"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24094
+
+[services.development]
+run = "pnpm --filter @workspace/yuniko-app run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/yuniko-app", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/yuniko-app/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24094"
+BASE_PATH = "/"
