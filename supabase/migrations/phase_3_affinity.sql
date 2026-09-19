@@ -1,0 +1,1 @@
+-- Phase 3 affinity updates from persisted interaction events. Applied to connected Supabase project.
