@@ -35,7 +35,7 @@ export async function createPost(userId:string,input:CreatePostInput & { mediaFi
 export async function listFeed(){
   const client=requireSupabase();
   const {data,error}=await client.from("posts")
-    .select("id,author_id,caption,media_url,media_type,location,hashtags,visibility,status,likes,comments,shares,saves,views,created_at,deleted_at,author:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,is_private)")
+    .select("id,user_id,caption,media_url,media_type,location,hashtags,visibility,status,likes,comments,shares,saves,views,created_at,deleted_at,author:users!posts_user_id_fkey(id,username,display_name,avatar_url)")
     .eq("status","ready").is("deleted_at",null).order("created_at",{ascending:false}).limit(50);
   if(error)return{data:null,error};
   const rows=(data??[]) as unknown as PostRow[];
