@@ -1,0 +1,4 @@
+-- Phase 9 + 10 source record
+-- Applied directly to Supabase project pqjrmtkfgwoocbvmwbby.
+-- Adds reports/moderation/audit/rate limiting, hardens RLS for settings,
+-- message requests and blocking, plus client-side mobile/scale helpers.
