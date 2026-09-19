@@ -144,17 +144,6 @@ const people: DemoUser[] = [
   { id: "2", username: "noah.reyes", displayName: "Noah Reyes", avatar: IMG.dj, bio: "Sound, motion, after dark.", followers: 905, following: 202, posts: 64, verified: true },
   { id: "3", username: "lina.rose", displayName: "Lina Rose", avatar: IMG.flower, bio: "A soft spot for strange flowers.", followers: 3204, following: 244, posts: 210 },
 ];
-const basePosts: DemoPost[] = [
-  { id: "p1", user: people[1], image: IMG.roof, caption: "Found a little more color on the way home.", hashtags: ["#nightwalk", "#citylight"], likes: 1247, comments: 38, shares: 17, views: 8400, location: "Seoul, South Korea" },
-  { id: "p2", user: people[2], image: IMG.dj, caption: "The room changes when the bass comes in.", hashtags: ["#afterdark", "#soundcheck"], likes: 892, comments: 24, shares: 12, views: 5200 },
-  { id: "p3", user: people[3], image: IMG.flower, caption: "Tiny worlds hiding in plain sight.", hashtags: ["#softfocus"], likes: 634, comments: 19, shares: 8, views: 3100, location: "Lisbon, Portugal" },
-];
-const baseStories: DemoStory[] = [
-  { id: "s1", user: people[1], image: IMG.roof },
-  { id: "s2", user: people[2], image: IMG.dj },
-  { id: "s3", user: people[3], image: IMG.flower, viewed: true },
-];
-
 const defaultState: DemoState = {
   liked: [],
   saved: [],
@@ -172,8 +161,8 @@ const defaultState: DemoState = {
   notifications: true,
   accountEmail: "maya.chen@example.com",
   profile: { displayName: currentUser.displayName, username: currentUser.username, bio: currentUser.bio, avatar: currentUser.avatar },
-  posts: basePosts,
-  stories: baseStories,
+  posts: [],
+  stories: [],
 };
 
 type StoreContextValue = {
