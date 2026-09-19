@@ -207,7 +207,7 @@ function StoreProvider({ children }: { children: ReactNode }) {
   const toastTimer=useRef<number|undefined>(undefined);
   const [remoteUserId,setRemoteUserId]=useState<string|null>(null);
   const activeUser=useMemo(()=>({...currentUser,...state.profile}),[state.profile]);
-  useEffect(()=>{ localStorage.removeItem("yuniko-demo-state"); },[state]);
+
 
   const showToast=useCallback((message:string)=>{setToast(message);window.clearTimeout(toastTimer.current);toastTimer.current=window.setTimeout(()=>setToast(null),2200);},[]);
 
