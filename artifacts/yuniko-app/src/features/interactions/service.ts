@@ -12,28 +12,37 @@ async function legacyUserId(){
 export async function getMyEngagements(postIds:number[]){
   if(!postIds.length) return {data:[],error:null};
   const client=requireSupabase(); const userId=await legacyUserId();
-  return client.from("post_engagements").select("post_id,liked,saved,shared").eq("user_id",userId).in("post_id",postIds);
+  const [likes,saves]=await Promise.all([
+    client.from("likes").select("post_id").eq("user_id",userId).in("post_id",postIds),
+    client.from("saves").select("post_id,collection_id").eq("user_id",userId).in("post_id",postIds),
+  ]);
+  return {data:[...(likes.data??[]).map((x:any)=>({post_id:x.post_id,liked:true,saved:false})),...(saves.data??[]).map((x:any)=>({post_id:x.post_id,liked:false,saved:true,collection_id:x.collection_id}))],error:likes.error??saves.error};
 }
+
 export async function toggleLike(postId:number,liked:boolean){
   const client=requireSupabase(); const userId=await legacyUserId();
-  const current=await client.from("post_engagements").select("id").eq("user_id",userId).eq("post_id",postId).maybeSingle();
-  if(current.error) return current;
-  if(current.data) return client.from("post_engagements").update({liked}).eq("id",current.data.id).select().single();
-  return client.from("post_engagements").insert({user_id:userId,post_id:postId,liked,saved:false,shared:false}).select().single();
+  if(liked) return client.from("likes").upsert({user_id:userId,post_id:postId},{onConflict:"user_id,post_id"}).select().single();
+  return client.from("likes").delete().eq("user_id",userId).eq("post_id",postId);
 }
-export async function toggleSave(postId:number,saved:boolean){
+export async function toggleSave(postId:number,saved:boolean,collectionId?:number){
   const client=requireSupabase(); const userId=await legacyUserId();
-  const current=await client.from("post_engagements").select("id").eq("user_id",userId).eq("post_id",postId).maybeSingle();
-  if(current.error) return current;
-  if(current.data) return client.from("post_engagements").update({saved}).eq("id",current.data.id).select().single();
-  return client.from("post_engagements").insert({user_id:userId,post_id:postId,liked:false,saved,shared:false}).select().single();
+  if(saved) return client.from("saves").upsert({user_id:userId,post_id:postId,collection_id:collectionId??null},{onConflict:"user_id,post_id"}).select().single();
+  return client.from("saves").delete().eq("user_id",userId).eq("post_id",postId);
 }
 export async function sharePost(postId:number,channel:string){
   const client=requireSupabase(); const userId=await legacyUserId();
-  const current=await client.from("post_engagements").select("id").eq("user_id",userId).eq("post_id",postId).maybeSingle();
-  if(current.error) return current;
-  if(current.data) return client.from("post_engagements").update({shared:true}).eq("id",current.data.id).select().single();
-  return client.from("post_engagements").insert({user_id:userId,post_id:postId,liked:false,saved:false,shared:true}).select().single();
+  return client.from("shares").insert({user_id:userId,post_id:postId,channel}).select().single();
+}
+export async function createCollection(name:string){
+  const client=requireSupabase(); const userId=await legacyUserId();
+  return client.from("collections").insert({user_id:userId,name:name.trim()}).select().single();
+}
+export async function saveToCollection(postId:number,collectionId:number){
+  return toggleSave(postId,true,collectionId);
+}
+export async function listCollections(){
+  const client=requireSupabase(); const userId=await legacyUserId();
+  return client.from("collections").select("id,name,created_at").eq("user_id",userId).order("created_at",{ascending:false});
 }
 export async function addComment(postId:number,body:string,parentId?:number){
   const client=requireSupabase(); const userId=await legacyUserId();
