@@ -67,7 +67,7 @@ import { getMyEngagements, toggleLike as toggleRemoteLike, toggleSave as toggleR
 import { enqueueInteraction, flushInteractionQueue } from "./features/interactions/queue";
 import { listNotifications, markNotificationsRead, subscribeToNotifications, getNotificationPreferences, updateNotificationPreferences } from "./features/notifications/service";
 import { searchYuniko } from "./features/search/service";
-import { createDirectConversation, sendMessage as sendRemoteMessage } from "./features/messaging/service";
+import { createDirectConversation, listMessages, sendMessage as sendRemoteMessage, subscribeToConversation } from "./features/messaging/service";
 import { createStory as createRemoteStory, uploadStoryMedia } from "./features/stories/service";
 import { blockUser as blockRemoteUser, unblockUser as unblockRemoteUser } from "./features/moderation/service";
 
@@ -444,14 +444,60 @@ function Chat() {
   const [, navigate] = useLocation();
   const params = useParams<{ userId?: string }>();
   const contact = people.find((person) => person.id === params.userId) ?? people[1];
-  const { state, sendMessage, showToast } = useDemo();
+  const { sendMessage, showToast } = useDemo();
   const [text, setText] = useState("");
   const [attachment, setAttachment] = useState<HTMLInputElement | null>(null);
-  const messages = state.messages[contact.id] || [];
-  const submit = (event: FormEvent) => { event.preventDefault(); if (text.trim()) { sendMessage(contact.id, text.trim()); setText(""); } };
-  return <PageShell nav={false} className="flex flex-col h-[100dvh]"><TopBar title={contact.displayName} action={<div className="flex gap-3"><button aria-label="Voice call" onClick={() => navigate(`/call/${contact.id}/voice`)}><Phone size={19} /></button><button aria-label="Video call" onClick={() => navigate(`/call/${contact.id}/video`)}><Video size={19} /></button></div>} /><div className="flex-1 overflow-y-auto px-4 py-5 space-y-3">{messages.map((message, index) => <div key={`${message}-${index}`} className={`flex ${index % 2 ? "justify-end" : "justify-start"}`}><p className={`max-w-[78%] px-4 py-3 rounded-2xl text-sm ${index % 2 ? "rounded-br-md text-white" : "rounded-bl-md bg-white/[.08] text-white/80"}`} style={index % 2 ? { background: GRADIENT } : undefined}>{message}</p></div>)}</div><form onSubmit={submit} className="flex gap-2 items-center p-3 border-t border-white/10 glass pb-safe"><input ref={setAttachment} type="file" accept="image/*" className="hidden" onChange={(event) => { if (event.target.files?.[0]) { sendMessage(contact.id, "[Photo attached]"); showToast("Photo attached"); } }} /><button type="button" aria-label="Attach" onClick={() => attachment?.click()}><Paperclip size={20} className="text-white/50" /></button><input value={text} onChange={(event) => setText(event.target.value)} placeholder="Write a message" className="flex-1 bg-white/[.06] rounded-full px-4 py-3 text-sm outline-none placeholder:text-white/35" /><button aria-label="Send" className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: text.trim() ? GRADIENT : "rgba(255,255,255,.08)" }}><Send size={16} /></button></form></PageShell>;
-}
+  const [messages, setMessages] = useState<Array<{id:number;sender_id:number;body:string|null;created_at:string}>>([]);
+  const [conversationId, setConversationId] = useState<number | null>(null);
 
+  useEffect(() => {
+    let active = true;
+    let unsubscribe: (() => void) | undefined;
+    void (async () => {
+      try {
+        const conversation = await createDirectConversation(Number(contact.id));
+        if (conversation.error) throw conversation.error;
+        const id = Number(conversation.data);
+        if (!Number.isFinite(id)) throw new Error("Conversation unavailable");
+        if (!active) return;
+        setConversationId(id);
+        const history = await listMessages(id, 50);
+        if (history.error) throw history.error;
+        if (active) setMessages((history.data ?? []).map((m:any)=>({id:m.id,sender_id:m.sender_id,body:m.body,created_at:m.created_at})).reverse());
+        unsubscribe = subscribeToConversation(id,(message:any)=>{
+          if(active) setMessages(prev=>prev.some(item=>item.id===message.id)?prev:[...prev,{id:message.id,sender_id:message.sender_id,body:message.body,created_at:message.created_at}]);
+        });
+      } catch (error:any) {
+        if (active) showToast(error?.message||"Could not open conversation");
+      }
+    })();
+    return () => { active=false; unsubscribe?.(); };
+  },[contact.id,showToast]);
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    if (text.trim()) {
+      sendMessage(contact.id, text.trim());
+      setText("");
+      if (conversationId) void listMessages(conversationId,50).then(result=>{
+        if(!result.error) setMessages((result.data??[]).map((m:any)=>({id:m.id,sender_id:m.sender_id,body:m.body,created_at:m.created_at})).reverse());
+      });
+    }
+  };
+
+  return <PageShell nav={false} className="flex flex-col h-[100dvh]">
+    <TopBar title={contact.displayName} action={<div className="flex gap-3"><button aria-label="Voice call" onClick={() => navigate(`/call/${contact.id}/voice`)}><Phone size={19} /></button><button aria-label="Video call" onClick={() => navigate(`/call/${contact.id}/video`)}><Video size={19} /></button></div>} />
+    <div className="flex-1 overflow-y-auto px-4 py-5 space-y-3">
+      {messages.map((message, index) => <div key={message.id} className={`flex ${index % 2 ? "justify-end" : "justify-start"}`}><p className={`max-w-[78%] px-4 py-3 rounded-2xl text-sm ${index % 2 ? "rounded-br-md text-white" : "rounded-bl-md bg-white/[.08] text-white/80"}`} style={index % 2 ? { background: GRADIENT } : undefined}>{message.body}</p></div>)}
+    </div>
+    <form onSubmit={submit} className="flex gap-2 items-center p-3 border-t border-white/10 glass pb-safe">
+      <input ref={setAttachment} type="file" accept="image/*" className="hidden" onChange={(event) => { if (event.target.files?.[0]) { showToast("Media messaging upload is ready"); } }} />
+      <button type="button" aria-label="Attach" onClick={() => attachment?.click()}><Paperclip size={20} className="text-white/50" /></button>
+      <input value={text} onChange={(event) => setText(event.target.value)} placeholder="Write a message" className="flex-1 bg-white/[.06] rounded-full px-4 py-3 text-sm outline-none placeholder:text-white/35" />
+      <button aria-label="Send" className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: text.trim() ? GRADIENT : "rgba(255,255,255,.08)" }}><Send size={16} /></button>
+    </form>
+  </PageShell>;
+}
 function CallPage() {
   const params = useParams<{ userId?: string; kind?: string }>();
   const [, navigate] = useLocation();
