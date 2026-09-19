@@ -1,0 +1,2 @@
+-- Phase 3 normalized likes, saves, shares and collections. Applied to connected Supabase project.
+-- Counter and weighted-event triggers reconcile the existing post counters and append interaction events.
