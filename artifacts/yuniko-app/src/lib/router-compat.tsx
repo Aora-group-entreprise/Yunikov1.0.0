@@ -1,4 +1,4 @@
-import { cloneElement, isValidElement, type ReactElement, type ReactNode } from "react";
+import { isValidElement, type ReactNode } from "react";
 import { useLocation as useTanLocation, useNavigate as useTanNavigate } from "@tanstack/react-router";
 
 export function useLocation(): [string, (to: string) => void] {
@@ -9,8 +9,8 @@ export function useLocation(): [string, (to: string) => void] {
 
 function matches(path: string, pattern: string) {
   if (pattern === "*" || pattern === "$") return true;
-  const base = pattern.split("/").filter(Boolean);
   const actual = path.split("?")[0].split("#")[0].split("/").filter(Boolean);
+  const base = pattern.split("/").filter(Boolean);
   if (base.length !== actual.length) return false;
   return base.every((segment, i) => segment.startsWith(":") || segment === actual[i]);
 }
@@ -39,8 +39,11 @@ export function Router({ children }: { children: ReactNode }) {
 
 export function useParams<T extends Record<string, string | undefined>>() {
   const [location] = useLocation();
-  const pathname = location.split("?")[0].split("#")[0];
-  const segments = pathname.split("/").filter(Boolean);
-  const params: Record<string, string> = {};
+  const parts = location.split("?")[0].split("#")[0].split("/").filter(Boolean);
+  const params: Record<string, string | undefined> = {};
+  if (parts[0] === "user" || parts[0] === "chat" || parts[0] === "followers" || parts[0] === "following") params.userId = parts[1];
+  if (parts[0] === "story") params.id = parts[1];
+  if (parts[0] === "post") params.postId = parts[1];
+  if (parts[0] === "call") { params.userId = parts[1]; params.kind = parts[2]; }
   return params as T;
 }
