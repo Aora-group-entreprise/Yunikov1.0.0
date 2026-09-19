@@ -71,6 +71,7 @@ import { searchYuniko } from "./features/search/service";
 import { createDirectConversation, listMessages, sendMessage as sendRemoteMessage, subscribeToConversation, uploadMessageMedia } from "./features/messaging/service";
 import { createStory as createRemoteStory, listActiveStories, uploadStoryMedia } from "./features/stories/service";
 import { blockUser as blockRemoteUser, unblockUser as unblockRemoteUser } from "./features/moderation/service";
+import { useAppStore } from "./stores/app";
 
 const queryClient = new QueryClient({defaultOptions:{queries:{staleTime:30000,retry:2}}});
 const GRADIENT = "linear-gradient(135deg,#FF006E 0%,#8B00FF 100%)";
@@ -203,13 +204,15 @@ function loadState(): DemoState {
 }
 function StoreProvider({ children }: { children: ReactNode }) {
   const [state,setState]=useState<DemoState>(loadState);
-  const [toast,setToast]=useState<string|null>(null);
+  const toast = useAppStore((store) => store.toast);
+  const setToast = useAppStore((store) => store.setToast);
+  const remoteUserId = useAppStore((store) => store.remoteUserId);
+  const setRemoteUserId = useAppStore((store) => store.setRemoteUserId);
   const toastTimer=useRef<number|undefined>(undefined);
-  const [remoteUserId,setRemoteUserId]=useState<string|null>(null);
   const activeUser=useMemo(()=>({...currentUser,...state.profile}),[state.profile]);
 
 
-  const showToast=useCallback((message:string)=>{setToast(message);window.clearTimeout(toastTimer.current);toastTimer.current=window.setTimeout(()=>setToast(null),2200);},[]);
+  const showToast=useCallback((message:string)=>{setToast(message);window.clearTimeout(toastTimer.current);toastTimer.current=window.setTimeout(()=>setToast(null),2200);},[setToast]);
 
   const hydrate=useCallback(async(authId:string)=>{
     setRemoteUserId(authId);
@@ -548,7 +551,8 @@ function DemoRouter({ splash, onLogin, authenticated }: { splash: boolean; onLog
 }
 export default function App() {
   const [splash, setSplash] = useState(true);
-  const [authenticated, setAuthenticated] = useState(false);
+  const authenticated = useAppStore((store) => store.authenticated);
+  const setAuthenticated = useAppStore((store) => store.setAuthenticated);
   const doneSplash = useCallback(() => setSplash(false), []);
 
   useEffect(() => {
