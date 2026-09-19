@@ -266,7 +266,7 @@ function StoreProvider({ children }: { children: ReactNode }) {
 
   const addPost=useCallback(async(input:{caption:string;image?:string;mediaFile?:File;location?:string;hashtags?:string[]})=>{
     if(!remoteUserId){showToast("Sign in required");return;}
-    const result=await createRemotePost(remoteUserId,{caption:input.caption,mediaUrl:input.image,mediaType:"image",location:input.location,hashtags:input.hashtags??[],visibility:"public"});
+    const result=await createRemotePost(remoteUserId,{caption:input.caption,mediaUrl:input.image,mediaType:input.mediaFile?.type.startsWith("video/")?"video":"image",location:input.location,hashtags:input.hashtags??[],visibility:"public",mediaFile:input.mediaFile});
     if(result.error){showToast(result.error.message);return;}
     showToast("Post published");
     const feed=await getHomeFeed();
