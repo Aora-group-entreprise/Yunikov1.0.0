@@ -17,7 +17,7 @@ export async function createPost(userId:string,input:CreatePostInput & {mediaFil
  if(!result.error&&result.data)await client.from("events").insert({user_id:userId,post_id:result.data.id,type:"post.created",weight:1}); return result;
 }
 
-export async function listFeed(){
+export async function getHomeFeed(){
  const client=requireSupabase(); const {data:{user}}=await client.auth.getUser(); if(!user)return{data:null,error:new Error("Authentication required")};
  const profile=await client.from("profiles").select("country_code").eq("id",user.id).maybeSingle(); const country=profile.data?.country_code??null;
  const result=await client.rpc("get_ranked_feed",{p_user:user.id,p_country:country,p_limit:20}); if(result.error)return{data:null,error:result.error};
@@ -27,6 +27,6 @@ export async function listFeed(){
  return{data:rows.map(row=>({...row,hashtags:parseHashtags(row.hashtags),media_url:row.media_url?urls.get(row.media_url)??row.media_url:null})) as unknown as PostRow[],error:signed.error??null};
 }
 
-export async function softDeletePost(userId:string,postId:number){
+export const listFeed = getHomeFeed;\n\nexport async function softDeletePost(userId:string,postId:number){
  const client=requireSupabase(); const result=await client.from("posts").update({deleted_at:new Date().toISOString(),status:"deleted"}).eq("id",postId).eq("author_id",userId).select("id,media_url").single(); if(!result.error)await client.from("events").insert({user_id:userId,post_id:postId,type:"post.deleted",weight:1}); return result;
 }
