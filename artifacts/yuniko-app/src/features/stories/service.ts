@@ -14,7 +14,7 @@ export async function uploadStoryMedia(file:File){
 
 export type StoryRow={id:number;user_id:number;media_url:string;media_type:string;caption:string|null;expires_at:string;created_at:string};
 
-export async function listActiveStories(){const client=requireSupabase();return client.from("stories").select("*").gt("expires_at",new Date().toISOString()).order("created_at",{ascending:false})}
+export async function listActiveStories(){ const client=requireSupabase(); const result=await client.from("stories").select("*").gt("expires_at",new Date().toISOString()).order("created_at",{ascending:false}); if(result.error||!result.data?.length)return result; const paths=result.data.map((x:any)=>x.media_url).filter((x:any)=>typeof x==="string"&&x.length>0); const signed=paths.length?await client.storage.from("stories").createSignedUrls(paths,3600):{data:[],error:null}; const urls=new Map((signed.data??[]).map((x:any)=>[x.path,x.signedUrl])); return {data:result.data.map((x:any)=>({...x,media_url:urls.get(x.media_url)??x.media_url})),error:signed.error??null}; }
 export async function createStory(mediaUrl:string,mediaType:"image"|"video",caption?:string){return requireSupabase().rpc("create_story",{p_media_url:mediaUrl,p_media_type:mediaType,p_caption:caption??null,p_hours:24})}
 export async function markStoryView(storyId:number){return requireSupabase().rpc("mark_story_view",{p_story_id:storyId})}
 export async function deleteStory(storyId:number){return requireSupabase().from("stories").delete().eq("id",storyId)}
