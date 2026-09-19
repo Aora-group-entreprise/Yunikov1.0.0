@@ -58,6 +58,11 @@ import {
   X,
 } from "lucide-react";
 import "./index.css";
+import { supabase } from "./lib/supabase";
+import { signIn, registerUser, signOut } from "./features/auth/service";
+import { getMyProfile, updateProfile as updateRemoteProfile } from "./features/profile/service";
+import { followUser, unfollowUser } from "./features/follow/service";
+import { getHomeFeed, createPost as createRemotePost } from "./features/feed/service";
 
 const GRADIENT = "linear-gradient(135deg,#FF006E 0%,#8B00FF 100%)";
 const IMG = {
@@ -196,42 +201,138 @@ function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<DemoState>(loadState);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<number | undefined>(undefined);
+  const [remoteUserId, setRemoteUserId] = useState<string | null>(null);
   const activeUser = useMemo(() => ({ ...currentUser, ...state.profile }), [state.profile]);
-  useEffect(() => { localStorage.setItem("yuniko-demo-state", JSON.stringify(state)); }, [state]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    let mounted = true;
+    const hydrate = async () => {
+      const { data } = await supabase.auth.getSession();
+      const userId = data.session?.user.id ?? null;
+      if (!mounted || !userId) return;
+      setRemoteUserId(userId);
+      const [profileResult, feedResult] = await Promise.all([getMyProfile(userId), getHomeFeed()]);
+      if (!mounted) return;
+      if (profileResult.data) {
+        const p = profileResult.data;
+        setState(previous => ({
+          ...previous,
+          profile: { displayName: p.display_name, username: p.username, bio: p.bio, avatar: p.avatar_url ?? "" },
+        }));
+      }
+      if (feedResult.data) {
+        const posts: DemoPost[] = feedResult.data.map(post => ({
+          id: String(post.id),
+          user: post.author ? {
+            id: post.author.id,
+            username: post.author.username,
+            displayName: post.author.display_name,
+            avatar: post.author.avatar_url ?? "",
+            bio: "",
+            followers: 0,
+            following: 0,
+            posts: 0,
+          } : activeUser,
+          image: post.media_url ?? IMG.neon,
+          caption: post.caption,
+          hashtags: Array.isArray(post.hashtags) ? post.hashtags : [],
+          likes: post.likes ?? 0,
+          comments: post.comments ?? 0,
+          shares: post.shares ?? 0,
+          views: post.views ?? 0,
+          location: post.location ?? undefined,
+        }));
+        setState(previous => ({ ...previous, posts }));
+      }
+    };
+    void hydrate();
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") setRemoteUserId(null);
+      else if (session?.user.id) setRemoteUserId(session.user.id);
+    });
+    return () => { mounted = false; listener.subscription.unsubscribe(); };
+  }, []);
+
   const showToast = useCallback((message: string) => {
     setToast(message);
     window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(null), 2200);
   }, []);
-  const toggleArrayValue = useCallback((key: "liked" | "saved" | "following", value: string) => {
-    setState((previous) => ({ ...previous, [key]: previous[key].includes(value) ? previous[key].filter((item) => item !== value) : [...previous[key], value] }));
+
+  const toggleArrayValue = useCallback((key: "liked" | "saved", value: string) => {
+    setState(previous => ({ ...previous, [key]: previous[key].includes(value) ? previous[key].filter(item => item !== value) : [...previous[key], value] }));
   }, []);
-  const addPost = useCallback((input: { caption: string; image?: string; location?: string; hashtags?: string[] }) => {
-    setState((previous) => ({ ...previous, posts: [{ id: `p-${Date.now()}`, user: { ...activeUser, posts: activeUser.posts + 1 }, image: input.image || IMG.neon, caption: input.caption || "A little spark from today.", hashtags: input.hashtags || [], likes: 0, comments: 0, shares: 0, views: 0, location: input.location || undefined }, ...previous.posts] }));
+
+  const toggleFollowRemote = useCallback(async (userId: string) => {
+    if (!remoteUserId) return;
+    const wasFollowing = state.following.includes(userId);
+    setState(previous => ({ ...previous, following: wasFollowing ? previous.following.filter(item => item !== userId) : [...previous.following, userId] }));
+    const result = wasFollowing ? await unfollowUser(remoteUserId, userId) : await followUser(remoteUserId, userId);
+    if (result.error) {
+      setState(previous => ({ ...previous, following: wasFollowing ? [...previous.following, userId] : previous.following.filter(item => item !== userId) }));
+      showToast("Could not update follow");
+    }
+  }, [remoteUserId, state.following, showToast]);
+
+  const addPost = useCallback(async (input: { caption: string; image?: string; location?: string; hashtags?: string[] }) => {
+    if (!remoteUserId) { showToast("Sign in required"); return; }
+    const result = await createRemotePost(remoteUserId, {
+      caption: input.caption,
+      mediaUrl: input.image,
+      mediaType: "image",
+      location: input.location,
+      hashtags: input.hashtags ?? [],
+      visibility: "public",
+    });
+    if (result.error) { showToast(result.error.message); return; }
     showToast("Post published");
-  }, [activeUser, showToast]);
+    const feed = await getHomeFeed();
+    if (feed.data) {
+      setState(previous => ({ ...previous, posts: feed.data.map(post => ({
+        id: String(post.id),
+        user: post.author ? { id: post.author.id, username: post.author.username, displayName: post.author.display_name, avatar: post.author.avatar_url ?? "", bio: "", followers: 0, following: 0, posts: 0 } : activeUser,
+        image: post.media_url ?? IMG.neon, caption: post.caption, hashtags: Array.isArray(post.hashtags) ? post.hashtags : [],
+        likes: post.likes ?? 0, comments: post.comments ?? 0, shares: post.shares ?? 0, views: post.views ?? 0, location: post.location ?? undefined,
+      })) }));
+    }
+  }, [remoteUserId, activeUser, showToast]);
+
   const addStory = useCallback((input: { caption: string; image?: string }) => {
-    setState((previous) => ({ ...previous, stories: [{ id: `s-${Date.now()}`, user: activeUser, image: input.image || IMG.neon }, ...previous.stories] }));
+    setState(previous => ({ ...previous, stories: [{ id: `s-${Date.now()}`, user: activeUser, image: input.image || IMG.neon }, ...previous.stories] }));
     showToast("Story shared");
   }, [activeUser, showToast]);
+
+  const saveProfile = useCallback(async (profile: Partial<DemoState["profile"]>) => {
+    setState(previous => ({ ...previous, profile: { ...previous.profile, ...profile } }));
+    if (!remoteUserId) return;
+    const result = await updateRemoteProfile(remoteUserId, {
+      display_name: profile.displayName,
+      username: profile.username,
+      bio: profile.bio,
+      avatar_url: profile.avatar,
+    });
+    if (result.error) showToast("Profile update failed");
+  }, [remoteUserId, showToast]);
+
   const value: StoreContextValue = {
     state,
     activeUser,
-    getUser: (id) => id === "me" || !id ? activeUser : people.find((person) => person.id === id) ?? people[1],
+    getUser: id => id === "me" || !id ? activeUser : people.find(person => person.id === id) ?? people[1],
     toast,
     showToast,
-    toggleLike: (id) => toggleArrayValue("liked", id),
-    toggleSave: (id) => toggleArrayValue("saved", id),
-    toggleFollow: (id) => toggleArrayValue("following", id),
-    addComment: (id, comment) => setState((previous) => ({ ...previous, comments: { ...previous.comments, [id]: [...(previous.comments[id] || []), comment] } })),
-    addStoryReply: (id, reply) => setState((previous) => ({ ...previous, storyReplies: { ...previous.storyReplies, [id]: [...(previous.storyReplies[id] || []), reply] } })),
-    sendMessage: (id, message) => setState((previous) => ({ ...previous, messages: { ...previous.messages, [id]: [...(previous.messages[id] || []), message] } })),
-    archiveConversation: (id) => setState((previous) => ({ ...previous, archived: previous.archived.includes(id) ? previous.archived.filter((item) => item !== id) : [...previous.archived, id] })),
+    toggleLike: id => toggleArrayValue("liked", id),
+    toggleSave: id => toggleArrayValue("saved", id),
+    toggleFollow: id => { void toggleFollowRemote(id); },
+    addComment: (id, comment) => setState(previous => ({ ...previous, comments: { ...previous.comments, [id]: [...(previous.comments[id] || []), comment] } })),
+    addStoryReply: (id, reply) => setState(previous => ({ ...previous, storyReplies: { ...previous.storyReplies, [id]: [...(previous.storyReplies[id] || []), reply] } })),
+    sendMessage: (id, message) => setState(previous => ({ ...previous, messages: { ...previous.messages, [id]: [...(previous.messages[id] || []), message] } })),
+    archiveConversation: id => setState(previous => ({ ...previous, archived: previous.archived.includes(id) ? previous.archived.filter(item => item !== id) : [...previous.archived, id] })),
     addPost,
     addStory,
-    updateProfile: (profile) => setState((previous) => ({ ...previous, profile: { ...previous.profile, ...profile } })),
-    updateState: (patch) => setState((previous) => ({ ...previous, ...patch })),
-    toggleBlocked: (id) => setState((previous) => ({ ...previous, blocked: previous.blocked.includes(id) ? previous.blocked.filter((item) => item !== id) : [...previous.blocked, id] })),
+    updateProfile: profile => { void saveProfile(profile); },
+    updateState: patch => setState(previous => ({ ...previous, ...patch })),
+    toggleBlocked: id => setState(previous => ({ ...previous, blocked: previous.blocked.includes(id) ? previous.blocked.filter(item => item !== id) : [...previous.blocked, id] })),
   };
   return <StoreContext.Provider value={value}>{children}<ToastHost /></StoreContext.Provider>;
 }
@@ -310,14 +411,30 @@ function Login({ onLogin }: { onLogin: () => void }) {
   const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
   const [step, setStep] = useState(1);
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
-  const submit = (event?: FormEvent) => { event?.preventDefault(); if (!username.trim() || !password) { setError("Please fill in all fields"); return; } onLogin(); navigate("/"); };
+  const submit = async (event?: FormEvent) => {
+    event?.preventDefault();
+    if (!email.trim() || !password) { setError("Please enter your email and password"); return; }
+    try {
+      const result = await signIn({ email: email.trim(), password });
+      if (result.error) { setError(result.error.message); return; }
+      onLogin(); navigate("/");
+    } catch (error) { setError(error instanceof Error ? error.message : "Sign in failed"); }
+  };
   const Field = ({ icon, value, onChange, placeholder, type = "text", suffix }: { icon: ReactNode; value: string; onChange: (value: string) => void; placeholder: string; type?: string; suffix?: ReactNode }) => <div className="flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-white/[.06] border border-white/10">{icon}<input type={type} value={value} onChange={(event) => { onChange(event.target.value); setError(""); }} placeholder={placeholder} className="flex-1 bg-transparent text-white/90 text-sm outline-none placeholder:text-white/30" />{suffix}</div>;
-  return <PageShell nav={false} className="flex flex-col"><div className="relative flex flex-col items-center justify-end px-6 pt-14 pb-7 min-h-[220px]"><div className="absolute inset-0" style={{ background: "linear-gradient(180deg,rgba(255,0,110,.17),rgba(139,0,255,.13) 60%,transparent)" }} /><div className="relative flex flex-col items-center"><div className="w-[68px] h-[68px] rounded-[20px] flex items-center justify-center mb-3" style={{ background: GRADIENT, boxShadow: "0 0 44px rgba(255,0,110,.45)" }}><Sparkles size={35} /></div><h1 className="text-2xl font-black gradient-text">Yuniko</h1></div></div><div className="flex-1 w-full max-w-lg mx-auto px-6 pb-10"><AnimatePresence mode="wait" initial={false}>{mode === "signin" && <motion.form key="signin" onSubmit={submit} initial={{ opacity: 0, x: -24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 24 }}><div className="flex p-1 rounded-2xl mb-6 bg-white/[.06] border border-white/10"><button type="button" className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white" style={{ background: GRADIENT }}>Sign In</button><button type="button" onClick={() => { setMode("signup"); setError(""); }} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white/50">Sign Up</button></div><div className="flex flex-col gap-3 mb-4"><Field icon={<User size={18} className="text-white/40" />} value={username} onChange={setUsername} placeholder="Username" /><Field icon={<Lock size={18} className="text-white/40" />} value={password} onChange={setPassword} placeholder="Password" type={showPw ? "text" : "password"} suffix={<button type="button" aria-label="Toggle password" onClick={() => setShowPw(!showPw)}>{showPw ? <EyeOff size={16} className="text-white/40" /> : <Eye size={16} className="text-white/40" />}</button>} /></div><div className="text-right mb-5"><button type="button" onClick={() => { setMode("forgot"); setError(""); }} className="text-sm text-pink-400">Forgot Password?</button></div>{error && <p className="text-red-400 text-xs text-center mb-4">{error}</p>}<button type="submit" className="w-full py-4 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2" style={{ background: GRADIENT, boxShadow: "0 4px 20px rgba(255,0,110,.35)" }}>Sign In <ArrowRight size={16} /></button><p className="text-center text-white/40 text-sm mt-5">Don't have an account? <button type="button" onClick={() => { setMode("signup"); setError(""); }} className="font-semibold text-pink-400">Sign Up</button></p></motion.form>}{mode === "signup" && <motion.div key={`signup-${step}`} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }}><div className="flex items-center justify-between mb-5"><button onClick={() => step === 1 ? setMode("signin") : setStep(step - 1)}><ArrowLeft size={20} className="text-white/60" /></button><div className="flex gap-1.5">{[1, 2, 3].map((n) => <span key={n} className="h-1.5 rounded-full transition-all" style={{ width: step === n ? 20 : 6, background: n <= step ? GRADIENT : "rgba(255,255,255,.18)" }} />)}</div><span className="w-6" /></div>{step === 1 && <><h2 className="text-xl font-bold mb-1">Create account</h2><p className="text-white/40 text-sm mb-5">Choose a unique username</p><div className="flex flex-col gap-3 mb-5"><Field icon={<span className="text-white/40">@</span>} value={username} onChange={setUsername} placeholder="username" /><Field icon={<Lock size={18} className="text-white/40" />} value={password} onChange={setPassword} placeholder="Password (min 6 characters)" type="password" /><Field icon={<Lock size={18} className="text-white/40" />} value={confirmPassword} onChange={setConfirmPassword} placeholder="Confirm password" type="password" /></div><button onClick={() => { if (username.length < 3 || password.length < 6 || password !== confirmPassword) setError("Use 3+ characters and matching passwords."); else { setError(""); setStep(2); } }} className="w-full py-4 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2" style={{ background: GRADIENT }}>Continue <ArrowRight size={16} /></button></>}{step === 2 && <><h2 className="text-xl font-bold mb-1">About you</h2><p className="text-white/40 text-sm mb-5">Help others find and know you</p><div className="flex flex-col gap-3 mb-5"><Field icon={<User size={18} className="text-white/40" />} value={name} onChange={setName} placeholder="Display name" /><Field icon={<Globe size={18} className="text-white/40" />} value="" onChange={() => undefined} placeholder="Where are you from?" /><Field icon={<Users size={18} className="text-white/40" />} value="" onChange={() => undefined} placeholder="Your age" type="number" /></div><button onClick={() => setStep(3)} className="w-full py-4 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2" style={{ background: GRADIENT }}>Continue <ArrowRight size={16} /></button></>}{step === 3 && <><h2 className="text-xl font-bold mb-1">Add your photo</h2><p className="text-white/40 text-sm mb-6">Help people recognize you</p><div className="flex justify-center mb-5"><div className="w-32 h-32 rounded-full flex items-center justify-center border-2 border-dashed border-white/20 bg-white/[.06]"><Camera size={28} className="text-pink-400" /></div></div><button onClick={() => { onLogin(); navigate("/"); }} className="w-full py-4 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2" style={{ background: GRADIENT }}>Create Account <ArrowRight size={16} /></button><button onClick={() => { onLogin(); navigate("/"); }} className="w-full py-3 text-white/35 text-sm mt-2">Skip for now</button></>}</motion.div>}{mode === "forgot" && <motion.form key="forgot" onSubmit={(event) => { event.preventDefault(); if (!username.trim()) setError("Please enter your username"); else { setError(""); setMode("signin"); } }} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }}><button type="button" onClick={() => setMode("signin")} className="mb-5"><ArrowLeft size={20} className="text-white/60" /></button><h2 className="text-xl font-bold mb-1">Reset password</h2><p className="text-white/40 text-sm mb-5">Enter your username to continue</p><Field icon={<User size={18} className="text-white/40" />} value={username} onChange={setUsername} placeholder="Your username" />{error && <p className="text-red-400 text-xs text-center mt-4">{error}</p>}<button type="submit" className="w-full py-4 mt-5 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2" style={{ background: GRADIENT }}>Continue <ArrowRight size={16} /></button></motion.form>}</AnimatePresence></div></PageShell>;
+  return <PageShell nav={false} className="flex flex-col"><div className="relative flex flex-col items-center justify-end px-6 pt-14 pb-7 min-h-[220px]"><div className="absolute inset-0" style={{ background: "linear-gradient(180deg,rgba(255,0,110,.17),rgba(139,0,255,.13) 60%,transparent)" }} /><div className="relative flex flex-col items-center"><div className="w-[68px] h-[68px] rounded-[20px] flex items-center justify-center mb-3" style={{ background: GRADIENT, boxShadow: "0 0 44px rgba(255,0,110,.45)" }}><Sparkles size={35} /></div><h1 className="text-2xl font-black gradient-text">Yuniko</h1></div></div><div className="flex-1 w-full max-w-lg mx-auto px-6 pb-10"><AnimatePresence mode="wait" initial={false}>{mode === "signin" && <motion.form key="signin" onSubmit={submit} initial={{ opacity: 0, x: -24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 24 }}><div className="flex p-1 rounded-2xl mb-6 bg-white/[.06] border border-white/10"><button type="button" className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white" style={{ background: GRADIENT }}>Sign In</button><button type="button" onClick={() => { setMode("signup"); setError(""); }} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white/50">Sign Up</button></div><div className="flex flex-col gap-3 mb-4"><Field icon={<User size={18} className="text-white/40" />} value={email} onChange={setEmail} placeholder="Email" /><Field icon={<Lock size={18} className="text-white/40" />} value={password} onChange={setPassword} placeholder="Password" type={showPw ? "text" : "password"} suffix={<button type="button" aria-label="Toggle password" onClick={() => setShowPw(!showPw)}>{showPw ? <EyeOff size={16} className="text-white/40" /> : <Eye size={16} className="text-white/40" />}</button>} /></div><div className="text-right mb-5"><button type="button" onClick={() => { setMode("forgot"); setError(""); }} className="text-sm text-pink-400">Forgot Password?</button></div>{error && <p className="text-red-400 text-xs text-center mb-4">{error}</p>}<button type="submit" className="w-full py-4 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2" style={{ background: GRADIENT, boxShadow: "0 4px 20px rgba(255,0,110,.35)" }}>Sign In <ArrowRight size={16} /></button><p className="text-center text-white/40 text-sm mt-5">Don't have an account? <button type="button" onClick={() => { setMode("signup"); setError(""); }} className="font-semibold text-pink-400">Sign Up</button></p></motion.form>}{mode === "signup" && <motion.div key={`signup-${step}`} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }}><div className="flex items-center justify-between mb-5"><button onClick={() => step === 1 ? setMode("signin") : setStep(step - 1)}><ArrowLeft size={20} className="text-white/60" /></button><div className="flex gap-1.5">{[1, 2, 3].map((n) => <span key={n} className="h-1.5 rounded-full transition-all" style={{ width: step === n ? 20 : 6, background: n <= step ? GRADIENT : "rgba(255,255,255,.18)" }} />)}</div><span className="w-6" /></div>{step === 1 && <><h2 className="text-xl font-bold mb-1">Create account</h2><p className="text-white/40 text-sm mb-5">Choose a unique username</p><div className="flex flex-col gap-3 mb-5"><Field icon={<span className="text-white/40">@</span>} value={username} onChange={setUsername} placeholder="username" />\n                  <Field icon={<span className="text-white/40">@</span>} value={email} onChange={setEmail} placeholder="email" type="email" /><Field icon={<Lock size={18} className="text-white/40" />} value={password} onChange={setPassword} placeholder="Password (min 6 characters)" type="password" /><Field icon={<Lock size={18} className="text-white/40" />} value={confirmPassword} onChange={setConfirmPassword} placeholder="Confirm password" type="password" /></div><button onClick={() => { if (username.length < 3 || password.length < 6 || password !== confirmPassword) setError("Use 3+ characters and matching passwords."); else { setError(""); setStep(2); } }} className="w-full py-4 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2" style={{ background: GRADIENT }}>Continue <ArrowRight size={16} /></button></>}{step === 2 && <><h2 className="text-xl font-bold mb-1">About you</h2><p className="text-white/40 text-sm mb-5">Help others find and know you</p><div className="flex flex-col gap-3 mb-5"><Field icon={<User size={18} className="text-white/40" />} value={name} onChange={setName} placeholder="Display name" /><Field icon={<Globe size={18} className="text-white/40" />} value="" onChange={() => undefined} placeholder="Where are you from?" /><Field icon={<Users size={18} className="text-white/40" />} value="" onChange={() => undefined} placeholder="Your age" type="number" /></div><button onClick={() => setStep(3)} className="w-full py-4 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2" style={{ background: GRADIENT }}>Continue <ArrowRight size={16} /></button></>}{step === 3 && <><h2 className="text-xl font-bold mb-1">Add your photo</h2><p className="text-white/40 text-sm mb-6">Help people recognize you</p><div className="flex justify-center mb-5"><div className="w-32 h-32 rounded-full flex items-center justify-center border-2 border-dashed border-white/20 bg-white/[.06]"><Camera size={28} className="text-pink-400" /></div></div><button onClick={async () => {
+                      if (username.length < 3 || password.length < 6 || password !== confirmPassword || !email.includes("@")) { setError("Use a valid email, 3+ character username and matching password."); return; }
+                      try {
+                        const result = await registerUser({ email: email.trim(), username: username.trim(), displayName: name.trim() || username.trim(), password });
+                        if (result.error) { setError(result.error.message); return; }
+                        if (result.data.session) { onLogin(); navigate("/"); } else { setError("Check your email to confirm your account, then sign in."); setMode("signin"); }
+                      } catch (error) { setError(error instanceof Error ? error.message : "Account creation failed"); }
+                    }} className="w-full py-4 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2" style={{ background: GRADIENT }}>Create Account <ArrowRight size={16} /></button><button onClick={() => { onLogin(); navigate("/"); }} className="w-full py-3 text-white/35 text-sm mt-2">Skip for now</button></>}</motion.div>}{mode === "forgot" && <motion.form key="forgot" onSubmit={(event) => { event.preventDefault(); if (!username.trim()) setError("Please enter your username"); else { setError(""); setMode("signin"); } }} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }}><button type="button" onClick={() => setMode("signin")} className="mb-5"><ArrowLeft size={20} className="text-white/60" /></button><h2 className="text-xl font-bold mb-1">Reset password</h2><p className="text-white/40 text-sm mb-5">Enter your username to continue</p><Field icon={<User size={18} className="text-white/40" />} value={username} onChange={setUsername} placeholder="Your username" />{error && <p className="text-red-400 text-xs text-center mt-4">{error}</p>}<button type="submit" className="w-full py-4 mt-5 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2" style={{ background: GRADIENT }}>Continue <ArrowRight size={16} /></button></motion.form>}</AnimatePresence></div></PageShell>;
 }
 
 function Notifications() {
@@ -438,14 +555,35 @@ function AnimatedRoutes({ onLogin }: { onLogin: () => void }) {
   useEffect(() => { if (location !== previous.current) { setDirection("forward"); previous.current = location; } }, [location]);
   return <div className="relative overflow-hidden yuniko-route-shell"><AnimatePresence mode="popLayout" initial={false}><motion.div key={location} initial={{ x: direction === "forward" ? "100%" : "-100%" }} animate={{ x: 0 }} exit={{ x: direction === "forward" ? "-100%" : "100%" }} transition={{ duration: .22, ease: [0.25, .1, .25, 1] }} className="yuniko-route-page"><Switch><Route path="/login"><Login onLogin={onLogin} /></Route><Route path="/" component={Home} /><Route path="/notifications" component={Notifications} /><Route path="/create" component={Create} /><Route path="/messages" component={Messages} /><Route path="/profile"><Profile /></Route><Route path="/user/:userId">{(params) => <Profile userId={params.userId} />}</Route><Route path="/settings" component={Settings} /><Route path="/search" component={SearchPage} /><Route path="/story/:id" component={StoryPage} /><Route path="/chat/:userId" component={Chat} /><Route path="/call/:userId/:kind" component={CallPage} /><Route path="/post/:postId" component={PostDetail} /><Route path="/followers/:userId">{() => <FollowersPage mode="followers" />}</Route><Route path="/following/:userId">{() => <FollowersPage mode="following" />}</Route><Route path="/profile/edit" component={EditProfilePage} /><Route path="/settings/account">{() => <SettingsDetail kind="account" />}</Route><Route path="/settings/privacy">{() => <SettingsDetail kind="privacy" />}</Route><Route path="/settings/security">{() => <SettingsDetail kind="security" />}</Route><Route path="/settings/storage">{() => <SettingsDetail kind="storage" />}</Route><Route path="/blocked-users">{() => <SettingsDetail kind="blocked" />}</Route><Route path="/account/verify">{() => <SettingsDetail kind="verify" />}</Route><Route path="/help" component={HelpPage} /><Route path="/feedback" component={FeedbackPage} /><Route path="/settings/about" component={AboutPage} /><Route path="/add-friends">{() => <SearchPage />}</Route><Route component={() => <PageShell><TopBar title="Page not found" /><EmptyState icon={<X size={28} />} title="Page not found" body="This Yuniko page does not exist." /></PageShell>} /></Switch></motion.div></AnimatePresence></div>;
 }
-function DemoRouter({ splash, onLogin }: { splash: boolean; onLogin: () => void }) {
+function DemoRouter({ splash, onLogin, authenticated }: { splash: boolean; onLogin: () => void; authenticated: boolean }) {
   const [location, navigate] = useLocation();
-  useEffect(() => { if (!splash && !localStorage.getItem("yuniko-demo-auth") && location !== "/login") navigate("/login"); }, [location, navigate, splash]);
-  return <>{!splash && !localStorage.getItem("yuniko-demo-auth") && location !== "/login" ? null : <AnimatedRoutes onLogin={onLogin} />}</>;
+  useEffect(() => { if (!splash && !authenticated && location !== "/login") navigate("/login"); }, [location, navigate, splash, authenticated]);
+  return <>{!splash && !authenticated && location !== "/login" ? <AnimatedRoutes onLogin={onLogin} /> : <AnimatedRoutes onLogin={onLogin} />}</>;
 }
 export default function App() {
   const [splash, setSplash] = useState(true);
+  const [authenticated, setAuthenticated] = useState(false);
   const doneSplash = useCallback(() => setSplash(false), []);
-  const onLogin = useCallback(() => { localStorage.setItem("yuniko-demo-auth", "1"); }, []);
-  return <StoreProvider><Router base={import.meta.env.BASE_URL.replace(/\/$/, "")}><div className="yuniko-root"><AnimatePresence>{splash && <Splash onDone={doneSplash} />}</AnimatePresence>{!splash ? <DemoRouter splash={splash} onLogin={onLogin} /> : <div className="min-h-screen" />}</div></Router></StoreProvider>;
+
+  useEffect(() => {
+    if (!supabase) return;
+    let mounted = true;
+    void supabase.auth.getSession().then(({ data }) => { if (mounted) setAuthenticated(Boolean(data.session)); });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (mounted) setAuthenticated(Boolean(session));
+    });
+    return () => { mounted = false; listener.subscription.unsubscribe(); };
+  }, []);
+
+  const onLogin = useCallback(() => setAuthenticated(true), []);
+  const onLogout = useCallback(async () => { if (supabase) await signOut(); setAuthenticated(false); }, []);
+
+  return <StoreProvider>
+    <Router base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+      <div className="yuniko-root">
+        <AnimatePresence>{splash && <Splash onDone={doneSplash} />}</AnimatePresence>
+        {!splash ? <DemoRouter splash={splash} onLogin={onLogin} authenticated={authenticated} /> : <div className="min-h-screen" />}
+      </div>
+    </Router>
+  </StoreProvider>;
 }
