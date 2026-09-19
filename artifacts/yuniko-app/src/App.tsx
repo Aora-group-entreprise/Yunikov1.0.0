@@ -388,7 +388,8 @@ function Create() {
   const [caption, setCaption] = useState("");
   const [location, setLocation] = useState("");
   const [hashtags, setHashtags] = useState("");
-  const [media, setMedia] = useState<string | null>(null);\n  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [media, setMedia] = useState<string | null>(null);
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [posted, setPosted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const publish = () => { if (!caption.trim() && !media) { showToast(tab === "story" ? "Add a photo or caption first" : "Add a photo or caption first"); return; } if (tab === "story") addStory({ caption, image: media || undefined }); else addPost({ caption, image: media || undefined, mediaFile: mediaFile || undefined, location, hashtags: hashtags.split(/[,\s]+/).map((tag) => tag.trim().replace(/^#?/, "#")).filter((tag) => tag.length > 1) }); setPosted(true); };
