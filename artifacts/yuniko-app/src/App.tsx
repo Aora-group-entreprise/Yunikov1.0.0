@@ -10,7 +10,6 @@ import {
   type ReactNode,
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { QueryClient } from "@tanstack/react-query";
 import { Router, Route, Switch, useLocation, useParams } from "./lib/router-compat";
 import {
   Archive,
@@ -72,8 +71,8 @@ import { createDirectConversation, listMessages, sendMessage as sendRemoteMessag
 import { createStory as createRemoteStory, listActiveStories, uploadStoryMedia } from "./features/stories/service";
 import { blockUser as blockRemoteUser, unblockUser as unblockRemoteUser } from "./features/moderation/service";
 import { useAppStore } from "./stores/app";
+import { queryClient } from "./query-client";
 
-const queryClient = new QueryClient({defaultOptions:{queries:{staleTime:30000,retry:2}}});
 const GRADIENT = "linear-gradient(135deg,#FF006E 0%,#8B00FF 100%)";
 const IMG = {
   neon: "/scene-neon.jpg",
