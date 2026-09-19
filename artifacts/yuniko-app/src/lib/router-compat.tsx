@@ -15,10 +15,23 @@ function matches(path: string, pattern: string) {
   return base.every((segment, i) => segment.startsWith(":") || segment === actual[i]);
 }
 
-export function Route({ path, component, children }: { path: string; component?: React.ComponentType<any>; children?: ReactNode }) {
+function extractParams(path: string, pattern: string) {
+  const actual = path.split("?")[0].split("#")[0].split("/").filter(Boolean);
+  const base = pattern.split("/").filter(Boolean);
+  const params: Record<string, string> = {};
+  base.forEach((segment, i) => { if (segment.startsWith(":") && actual[i] !== undefined) params[segment.slice(1)] = actual[i]; });
+  return params;
+}
+
+export function Route({ path, component, children }: {
+  path?: string;
+  component?: React.ComponentType<any>;
+  children?: ReactNode | ((params: Record<string, string>) => ReactNode);
+}) {
   const [location] = useLocation();
-  if (!matches(location, path)) return null;
+  if (path && !matches(location, path)) return null;
   if (component) { const Component = component; return <Component />; }
+  if (typeof children === "function") return <>{children(path ? extractParams(location, path) : {})}</>;
   return <>{children}</>;
 }
 
@@ -33,7 +46,7 @@ export function Switch({ children }: { children: ReactNode }) {
   return null;
 }
 
-export function Router({ children }: { children: ReactNode }) {
+export function Router({ children }: { children: ReactNode; base?: string }) {
   return <>{children}</>;
 }
 
