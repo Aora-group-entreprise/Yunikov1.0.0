@@ -1,0 +1,3 @@
+-- Phase 3/4 completion: normalized interaction notifications, comment quality limits,
+-- notification preferences and grouped in-app notifications.
+-- Applied to Supabase project pqjrmtkfgwoocbvmwbby.
