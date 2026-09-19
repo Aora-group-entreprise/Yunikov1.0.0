@@ -1,0 +1,5 @@
+-- Phase 5 + 6: ranked feed and global distribution
+-- Applied to Supabase project pqjrmtkfgwoocbvmwbby on main.
+-- Runtime SQL is kept here as the source-of-truth record for the database objects:
+-- post_stats, post_distribution, seen_posts, get_ranked_feed(), mark_feed_seen(),
+-- private.evaluate_post_distribution(), event->stats trigger, and pg_cron 5-minute evaluation.
