@@ -1,0 +1,1 @@
+export type Database={public:{Tables:{profiles:{Row:import("../features/profile/types").ProfileRow};posts:{Row:import("../features/posts/types").PostRow};follows:{Row:Record<string,unknown>};events:{Row:Record<string,unknown>};post_media:{Row:Record<string,unknown>}}}};
