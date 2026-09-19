@@ -1,0 +1,1 @@
+export type ProfileRow = { id:string; username:string; display_name:string; bio:string; avatar_url:string|null; country:string|null; is_private:boolean; follower_count:number; following_count:number; post_count:number; created_at:string; updated_at:string; };
