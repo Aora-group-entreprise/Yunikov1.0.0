@@ -1,5 +1,12 @@
 import { requireSupabase } from "../../lib/supabase";
 
+export async function uploadMessageMedia(file:File){
+ const client=requireSupabase(); const {data:{user}}=await client.auth.getUser(); if(!user)return{path:null,error:new Error("Authentication required")};
+ const ext=(file.name.split(".").pop()||"bin").toLowerCase().replace(/[^a-z0-9]/g,""); const path=`${user.id}/${crypto.randomUUID()}.${ext}`;
+ const signed=await client.storage.from("message-media").createSignedUploadUrl(path); if(signed.error||!signed.data)return{path:null,error:signed.error??new Error("Could not create upload URL")};
+ const uploaded=await client.storage.from("message-media").uploadToSignedUrl(path,signed.data.token,file,{contentType:file.type,cacheControl:"3600"}); return{path:uploaded.error?null:path,error:uploaded.error};
+}
+
 export type MessageRow={id:number;conversation_id:number;sender_id:number;kind:string;body:string|null;media_url:string|null;duration_ms:number|null;delivered_at:string|null;read_at:string|null;created_at:string};
 
 export async function createDirectConversation(otherUserId:number){
