@@ -138,6 +138,8 @@ const currentUser: DemoUser = {
   posts: 0,
 };
 
+const people: DemoUser[] = [currentUser];
+
 const defaultState: DemoState = {
   liked: [],
   saved: [],
