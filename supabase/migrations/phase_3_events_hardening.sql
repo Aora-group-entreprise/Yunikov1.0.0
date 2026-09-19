@@ -1,0 +1,3 @@
+-- Phase 3 event and counter hardening. See the connected database migration history for the full applied trigger definitions.
+-- Engagement transitions emit weighted events: like=1, comment=3, save=4, share=5.
+-- Counter values are reconciled from post_engagements and comments by security-definer triggers.
