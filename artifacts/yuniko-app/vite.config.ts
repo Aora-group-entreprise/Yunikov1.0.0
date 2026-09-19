@@ -31,11 +31,6 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-          await import('@replit/vite-plugin-dev-banner').then((m) =>
-            m.devBanner(),
-          ),
-        ]
-      : []),
   ],
   resolve: {
     alias: {
