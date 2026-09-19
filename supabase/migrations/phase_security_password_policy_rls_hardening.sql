@@ -1,0 +1,13 @@
+-- Security hardening: application password policy + RLS fixes.
+-- Applied directly to Supabase project pqjrmtkfgwoocbvmwbby.
+--
+-- Password policy is enforced in the application signup schema:
+-- 12-128 chars, lower, upper, digit and symbol.
+-- Supabase Auth remains the authoritative password storage/authentication layer.
+--
+-- RLS hardening:
+-- * conversations are readable only by members
+-- * conversation_members are readable/inserable only for the current legacy user
+-- * create_dm is SECURITY DEFINER with an explicit authenticated-user check
+-- * post_stats and post_distribution are no longer globally readable
+-- * get_ranked_feed uses controlled SECURITY DEFINER access and validates auth.uid()
