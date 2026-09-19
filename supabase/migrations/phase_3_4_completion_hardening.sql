@@ -1,6 +1,11 @@
 -- Phase 3/4 completion hardening
 -- Applied to Supabase project pqjrmtkfgwoocbvmwbby.
--- Scope: normalized interaction notification triggers + aggregation, comment quality/rate limiting,
--- notification preferences with RLS, normalized counter/event reconciliation, trigram search indexes,
--- hardened search_yuniko RPC, and Realtime publication coverage for notifications/comments/likes/saves/shares.
--- Source of truth for the applied production migration: Supabase migration phase_3_4_completion_hardening.
+-- This migration completes the remaining Phase 3/4 backend hardening:
+-- normalized interaction notifications + aggregation, comment quality/rate limiting,
+-- notification preferences/RLS, normalized counter/event reconciliation,
+-- trigram search indexes, hardened search RPC, and Realtime coverage.
+--
+-- The authoritative SQL is applied in Supabase migration:
+-- phase_3_4_completion_hardening
+-- The repository record intentionally remains concise because Supabase is the
+-- migration executor/source of truth for this connected project.
