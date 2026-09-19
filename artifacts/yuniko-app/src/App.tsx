@@ -63,6 +63,8 @@ import { signIn, registerUser, signOut } from "./features/auth/service";
 import { getMyProfile, updateProfile as updateRemoteProfile } from "./features/profile/service";
 import { followUser, unfollowUser } from "./features/follow/service";
 import { getHomeFeed, createPost as createRemotePost } from "./features/feed/service";
+import { toggleLike as toggleRemoteLike, toggleSave as toggleRemoteSave, addComment as addRemoteComment } from "./features/interactions/service";
+import { listNotifications, markNotificationsRead } from "./features/notifications/service";
 
 const GRADIENT = "linear-gradient(135deg,#FF006E 0%,#8B00FF 100%)";
 const IMG = {
@@ -324,7 +326,7 @@ function StoreProvider({ children }: { children: ReactNode }) {
     toggleLike: id => toggleArrayValue("liked", id),
     toggleSave: id => toggleArrayValue("saved", id),
     toggleFollow: id => { void toggleFollowRemote(id); },
-    addComment: (id, comment) => setState(previous => ({ ...previous, comments: { ...previous.comments, [id]: [...(previous.comments[id] || []), comment] } })),
+    addComment: (id, comment) => { void addCommentRemote(id, comment); },
     addStoryReply: (id, reply) => setState(previous => ({ ...previous, storyReplies: { ...previous.storyReplies, [id]: [...(previous.storyReplies[id] || []), reply] } })),
     sendMessage: (id, message) => setState(previous => ({ ...previous, messages: { ...previous.messages, [id]: [...(previous.messages[id] || []), message] } })),
     archiveConversation: id => setState(previous => ({ ...previous, archived: previous.archived.includes(id) ? previous.archived.filter(item => item !== id) : [...previous.archived, id] })),
@@ -437,7 +439,7 @@ function Login({ onLogin }: { onLogin: () => void }) {
                     }} className="w-full py-4 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2" style={{ background: GRADIENT }}>Create Account <ArrowRight size={16} /></button><button onClick={() => { setMode("signin"); setError(""); }} className="w-full py-3 text-white/35 text-sm mt-2">Back to sign in</button></>}</motion.div>}{mode === "forgot" && <motion.form key="forgot" onSubmit={(event) => { event.preventDefault(); if (!username.trim()) setError("Please enter your username"); else { setError(""); setMode("signin"); } }} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }}><button type="button" onClick={() => setMode("signin")} className="mb-5"><ArrowLeft size={20} className="text-white/60" /></button><h2 className="text-xl font-bold mb-1">Reset password</h2><p className="text-white/40 text-sm mb-5">Enter your username to continue</p><Field icon={<User size={18} className="text-white/40" />} value={username} onChange={setUsername} placeholder="Your username" />{error && <p className="text-red-400 text-xs text-center mt-4">{error}</p>}<button type="submit" className="w-full py-4 mt-5 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2" style={{ background: GRADIENT }}>Continue <ArrowRight size={16} /></button></motion.form>}</AnimatePresence></div></PageShell>;
 }
 
-function Notifications() {
+function Notifications() {\n  const [remoteNotifications, setRemoteNotifications] = useState<Array<{id:number;type:string;message:string;created_at:string;read_at:string|null}>>([]);\n  useEffect(() => { void listNotifications().then(result => { if (result.data) setRemoteNotifications(result.data as typeof remoteNotifications); }); void markNotificationsRead(); }, []);
   const [, navigate] = useLocation();
   const { state, toggleFollow, showToast } = useDemo();
   return <PageShell><TopBar title="Notifications" back={false} /><div className="px-4 pt-4"><button onClick={() => navigate(`/post/p1`)} className="w-full flex items-center gap-3 py-4 border-b border-white/5 text-left"><Avatar user={people[2]} size="md" ring /><p className="text-sm text-white/80 flex-1"><b>Noah Reyes</b> liked your post <span className="text-white/40">2m</span></p><img src={IMG.flower} alt="" className="w-12 h-12 rounded-lg object-cover" /></button><div className="flex items-center gap-3 py-4 border-b border-white/5"><Avatar user={people[3]} size="md" ring /><p className="text-sm text-white/80 flex-1"><b>Lina Rose</b> started following you <span className="text-white/40">1h</span></p><button onClick={() => { toggleFollow("3"); showToast(state.following.includes("3") ? "Unfollowed Lina Rose" : "Following Lina Rose"); }} className="px-3 py-1.5 rounded-full text-xs font-semibold" style={{ background: state.following.includes("3") ? "rgba(255,255,255,.12)" : GRADIENT }}>{state.following.includes("3") ? "Following" : "Follow back"}</button></div><button onClick={() => navigate("/story/s1")} className="w-full flex items-center gap-3 py-4 border-b border-white/5 text-left"><Avatar user={people[1]} size="md" ring /><p className="text-sm text-white/80 flex-1"><b>Sofia Park</b> mentioned you in a story <span className="text-white/40">3h</span></p><Play size={18} className="text-pink-400" /></button></div></PageShell>;
