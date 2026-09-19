@@ -69,7 +69,7 @@ import { enqueueInteraction, flushInteractionQueue } from "./features/interactio
 import { listNotifications, markNotificationsRead, subscribeToNotifications, getNotificationPreferences, updateNotificationPreferences } from "./features/notifications/service";
 import { searchYuniko } from "./features/search/service";
 import { createDirectConversation, listMessages, sendMessage as sendRemoteMessage, subscribeToConversation, uploadMessageMedia } from "./features/messaging/service";
-import { createStory as createRemoteStory, uploadStoryMedia } from "./features/stories/service";
+import { createStory as createRemoteStory, listActiveStories, uploadStoryMedia } from "./features/stories/service";
 import { blockUser as blockRemoteUser, unblockUser as unblockRemoteUser } from "./features/moderation/service";
 
 const queryClient = new QueryClient({defaultOptions:{queries:{staleTime:30000,retry:2}}});
@@ -198,13 +198,19 @@ type StoreContextValue = {
 
 const StoreContext = createContext<StoreContextValue | null>(null);
 function loadState(): DemoState {
-  try {
-    const saved = localStorage.getItem("yuniko-demo-state");
-    if (!saved) return defaultState;
-    return { ...defaultState, ...JSON.parse(saved), profile: { ...defaultState.profile, ...JSON.parse(saved).profile } };
-  } catch {
-    return defaultState;
-  }
+  return {
+    ...defaultState,
+    liked: [],
+    saved: [],
+    following: [],
+    comments: {},
+    storyReplies: {},
+    messages: {},
+    archived: [],
+    blocked: [],
+    posts: [],
+    stories: [],
+  };
 }
 function StoreProvider({ children }: { children: ReactNode }) {
   const [state,setState]=useState<DemoState>(loadState);
@@ -218,8 +224,9 @@ function StoreProvider({ children }: { children: ReactNode }) {
 
   const hydrate=useCallback(async(authId:string)=>{
     setRemoteUserId(authId);
-    const [profileResult,feedResult]=await Promise.all([queryClient.fetchQuery({queryKey:["profile",authId],queryFn:()=>getMyProfile(authId)}),queryClient.fetchQuery({queryKey:["feed"],queryFn:()=>getHomeFeed()})]);
+    const [profileResult,feedResult,storiesResult]=await Promise.all([queryClient.fetchQuery({queryKey:["profile",authId],queryFn:()=>getMyProfile(authId)}),queryClient.fetchQuery({queryKey:["feed"],queryFn:()=>getHomeFeed()}),queryClient.fetchQuery({queryKey:["stories"],queryFn:()=>listActiveStories()})]);
     if(profileResult.data){const p=profileResult.data;setState(prev=>({...prev,profile:{displayName:p.display_name,username:p.username,bio:p.bio,avatar:p.avatar_url??""}}));}
+    if(storiesResult.data){ setState(prev=>({...prev,stories:storiesResult.data.map((story:any)=>({id:String(story.id),user:people.find(p=>String(p.id)===String(story.user_id))??activeUser,image:story.media_url,viewed:false}))})); }
     if(feedResult.data){
       const posts:DemoPost[]=feedResult.data.map(post=>({id:String(post.id),user:post.author?{id:post.author.id,username:post.author.username,displayName:post.author.display_name,avatar:post.author.avatar_url??"",bio:"",followers:0,following:0,posts:0}:activeUser,image:post.media_url??IMG.neon,caption:post.caption,hashtags:Array.isArray(post.hashtags)?post.hashtags:[],likes:post.likes??0,comments:post.comments??0,shares:post.shares??0,views:post.views??0,location:post.location??undefined}));
       const ids=posts.map(p=>Number(p.id)).filter(Number.isFinite);
