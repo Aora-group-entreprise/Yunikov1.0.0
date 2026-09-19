@@ -27,6 +27,8 @@ export async function getHomeFeed(){
  return{data:rows.map(row=>({...row,hashtags:parseHashtags(row.hashtags),media_url:row.media_url?urls.get(row.media_url)??row.media_url:null})) as unknown as PostRow[],error:signed.error??null};
 }
 
-export const listFeed = getHomeFeed;\n\nexport async function softDeletePost(userId:string,postId:number){
+export const listFeed = getHomeFeed;
+
+export async function softDeletePost(userId:string,postId:number){
  const client=requireSupabase(); const result=await client.from("posts").update({deleted_at:new Date().toISOString(),status:"deleted"}).eq("id",postId).eq("author_id",userId).select("id,media_url").single(); if(!result.error)await client.from("events").insert({user_id:userId,post_id:postId,type:"post.deleted",weight:1}); return result;
 }
