@@ -130,21 +130,15 @@ type DemoState = {
 
 const currentUser: DemoUser = {
   id: "me",
-  username: "maya.chen",
-  displayName: "Maya Chen",
-  avatar: IMG.neon,
-  bio: "Collecting little sparks from everywhere.",
-  followers: 1248,
-  following: 384,
-  posts: 87,
-  verified: true,
+  username: "user",
+  displayName: "User",
+  avatar: "",
+  bio: "",
+  followers: 0,
+  following: 0,
+  posts: 0,
 };
-const people: DemoUser[] = [
-  currentUser,
-  { id: "1", username: "sofia.park", displayName: "Sofia Park", avatar: IMG.roof, bio: "Light leaks and late trains.", followers: 4820, following: 612, posts: 132 },
-  { id: "2", username: "noah.reyes", displayName: "Noah Reyes", avatar: IMG.dj, bio: "Sound, motion, after dark.", followers: 905, following: 202, posts: 64, verified: true },
-  { id: "3", username: "lina.rose", displayName: "Lina Rose", avatar: IMG.flower, bio: "A soft spot for strange flowers.", followers: 3204, following: 244, posts: 210 },
-];
+
 const defaultState: DemoState = {
   liked: [],
   saved: [],
@@ -204,6 +198,7 @@ function loadState(): DemoState {
 }
 function StoreProvider({ children }: { children: ReactNode }) {
   const [state,setState]=useState<DemoState>(loadState);
+  const [people,setPeople]=useState<DemoUser[]>([currentUser]);
   const toast = useAppStore((store) => store.toast);
   const setToast = useAppStore((store) => store.setToast);
   const remoteUserId = useAppStore((store) => store.remoteUserId);
@@ -221,6 +216,7 @@ function StoreProvider({ children }: { children: ReactNode }) {
     if(storiesResult.data){ setState(prev=>({...prev,stories:storiesResult.data.map((story:any)=>({id:String(story.id),user:people.find(p=>String(p.id)===String(story.user_id))??activeUser,image:story.media_url,viewed:false}))})); }
     if(feedResult.data){
       const posts:DemoPost[]=feedResult.data.map(post=>({id:String(post.id),user:post.author?{id:post.author.id,username:post.author.username,displayName:post.author.display_name,avatar:post.author.avatar_url??"",bio:"",followers:0,following:0,posts:0}:activeUser,image:post.media_url??IMG.neon,caption:post.caption,hashtags:Array.isArray(post.hashtags)?post.hashtags:[],likes:post.likes??0,comments:post.comments??0,shares:post.shares??0,views:post.views??0,location:post.location??undefined}));
+      setPeople(prev=>{const next=[...prev]; for(const post of posts){if(post.user.id!==activeUser.id&&!next.some(u=>u.id===post.user.id))next.push(post.user);} return next;});
       const ids=posts.map(p=>Number(p.id)).filter(Number.isFinite);
       const engagement=await getMyEngagements(ids);
       const liked=(engagement.data??[]).filter((x:any)=>x.liked).map((x:any)=>String(x.post_id));
