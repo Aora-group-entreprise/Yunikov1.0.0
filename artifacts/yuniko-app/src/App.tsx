@@ -63,7 +63,7 @@ import { signIn, registerUser, signOut } from "./features/auth/service";
 import { getMyProfile, updateProfile as updateRemoteProfile } from "./features/profile/service";
 import { followUser, unfollowUser } from "./features/follow/service";
 import { getHomeFeed, createPost as createRemotePost } from "./features/feed/service";
-import { toggleLike as toggleRemoteLike, toggleSave as toggleRemoteSave, addComment as addRemoteComment, sharePost as shareRemotePost, listComments as listRemoteComments } from "./features/interactions/service";
+import { getMyEngagements, toggleLike as toggleRemoteLike, toggleSave as toggleRemoteSave, addComment as addRemoteComment, sharePost as shareRemotePost } from "./features/interactions/service";
 import { listNotifications, markNotificationsRead, subscribeToNotifications } from "./features/notifications/service";
 
 const GRADIENT = "linear-gradient(135deg,#FF006E 0%,#8B00FF 100%)";
