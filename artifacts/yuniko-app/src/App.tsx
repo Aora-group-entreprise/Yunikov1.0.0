@@ -256,7 +256,7 @@ function StoreProvider({ children }: { children: ReactNode }) {
   const addComment=useCallback(async(postId:string,body:string)=>{
     const clean=body.trim();if(!clean)return;
     setState(prev=>({...prev,comments:{...prev.comments,[postId]:[...(prev.comments[postId]||[]),clean]},posts:prev.posts.map(p=>p.id===postId?{...p,comments:p.comments+1}:p)}));
-    if(!remoteUserId||!/^d+$/.test(postId))return;
+    if(!remoteUserId||!/^\d+$/.test(postId))return;
     const result=await addRemoteComment(Number(postId),clean);
     if(result.error){setState(prev=>({...prev,comments:{...prev.comments,[postId]:(prev.comments[postId]||[]).filter((x,i,a)=>!(x===clean&&i===a.lastIndexOf(clean)))},posts:prev.posts.map(p=>p.id===postId?{...p,comments:Math.max(0,p.comments-1)}:p)}));showToast(result.error.message||"Comment failed");}
   },[remoteUserId,showToast]);
@@ -327,7 +327,7 @@ function PostCard({ post }: { post: DemoPost }) {
   const [commentsOpen,setCommentsOpen]=useState(false),[comment,setComment]=useState(""),[burst,setBurst]=useState(false),[remoteComments,setRemoteComments]=useState<string[]>([]);
   const lastTap=useRef(0); const liked=state.liked.includes(post.id),saved=state.saved.includes(post.id),following=state.following.includes(post.user.id);
   const postComments=remoteComments.length?remoteComments:(state.comments[post.id]||[]);
-  useEffect(()=>{if(!commentsOpen||!/^d+$/.test(post.id))return;void listComments(Number(post.id)).then(r=>{if(r.data)setRemoteComments((r.data as any[]).map(x=>x.text));});},[commentsOpen,post.id]);
+  useEffect(()=>{if(!commentsOpen||!/^\d+$/.test(post.id))return;void listComments(Number(post.id)).then(r=>{if(r.data)setRemoteComments((r.data as any[]).map(x=>x.text));});},[commentsOpen,post.id]);
   const tapImage=()=>{const now=Date.now();if(now-lastTap.current<320){if(!liked)toggleLike(post.id);setBurst(true);window.setTimeout(()=>setBurst(false),700);}lastTap.current=now;};
   const share=async()=>{const url=`${window.location.origin}/post/${post.id}`;try{let channel="copy";if(navigator.share){await navigator.share({title:"Yuniko post",url});channel="web_share";}else await navigator.clipboard?.writeText(url);if(/^\d+$/.test(post.id)){const r=await shareRemotePost(Number(post.id),channel);if(r.error)throw r.error;}showToast("Post link shared");}catch{showToast("Sharing cancelled");}};
   const submitComment=(e:FormEvent)=>{e.preventDefault();if(!comment.trim())return;addComment(post.id,comment.trim());setRemoteComments(p=>[...p,comment.trim()]);setComment("");showToast("Comment added");};
