@@ -1,0 +1,3 @@
+export const DISTRIBUTION_STAGES={stage1:{countries:3,impressions:2300,engagement:.06,velocity:.04,maxHours:6},stage2:{countries:5,impressions:3500,engagement:.05,velocity:.03,maxHours:12},stage3:{countries:7,impressions:8000,engagement:.04,velocity:.02,maxHours:24},stage4:{countries:50,impressions:8000,engagement:.04,velocity:.02,maxHours:24}} as const;
+export function countryScore(followers:number,language:number,creatorAffinity:number,topicReceptivity:number){return .40*followers+.25*language+.20*creatorAffinity+.15*topicReceptivity}
+export function shouldAdvance(impressions:number,engagement:number,velocity:number,stage:1|2|3|4){const t=DISTRIBUTION_STAGES["stage"+stage];return impressions>=t.impressions&&engagement>=t.engagement&&velocity>=t.velocity}
