@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Router, Route, Switch, useLocation, useParams } from "wouter";
 import {
   Archive,
@@ -71,6 +72,7 @@ import { createDirectConversation, listMessages, sendMessage as sendRemoteMessag
 import { createStory as createRemoteStory, uploadStoryMedia } from "./features/stories/service";
 import { blockUser as blockRemoteUser, unblockUser as unblockRemoteUser } from "./features/moderation/service";
 
+const queryClient = new QueryClient({defaultOptions:{queries:{staleTime:30000,retry:2}}});
 const GRADIENT = "linear-gradient(135deg,#FF006E 0%,#8B00FF 100%)";
 const IMG = {
   neon: "/scene-neon.jpg",
@@ -216,7 +218,7 @@ function StoreProvider({ children }: { children: ReactNode }) {
 
   const hydrate=useCallback(async(authId:string)=>{
     setRemoteUserId(authId);
-    const [profileResult,feedResult]=await Promise.all([getMyProfile(authId),getHomeFeed()]);
+    const [profileResult,feedResult]=await Promise.all([queryClient.fetchQuery({queryKey:["profile",authId],queryFn:()=>getMyProfile(authId)}),queryClient.fetchQuery({queryKey:["feed"],queryFn:()=>getHomeFeed()})]);
     if(profileResult.data){const p=profileResult.data;setState(prev=>({...prev,profile:{displayName:p.display_name,username:p.username,bio:p.bio,avatar:p.avatar_url??""}}));}
     if(feedResult.data){
       const posts:DemoPost[]=feedResult.data.map(post=>({id:String(post.id),user:post.author?{id:post.author.id,username:post.author.username,displayName:post.author.display_name,avatar:post.author.avatar_url??"",bio:"",followers:0,following:0,posts:0}:activeUser,image:post.media_url??IMG.neon,caption:post.caption,hashtags:Array.isArray(post.hashtags)?post.hashtags:[],likes:post.likes??0,comments:post.comments??0,shares:post.shares??0,views:post.views??0,location:post.location??undefined}));
