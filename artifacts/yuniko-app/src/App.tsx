@@ -67,7 +67,7 @@ import { getMyEngagements, toggleLike as toggleRemoteLike, toggleSave as toggleR
 import { enqueueInteraction, flushInteractionQueue } from "./features/interactions/queue";
 import { listNotifications, markNotificationsRead, subscribeToNotifications, getNotificationPreferences, updateNotificationPreferences } from "./features/notifications/service";
 import { searchYuniko } from "./features/search/service";
-import { createDirectConversation, listMessages, sendMessage as sendRemoteMessage, subscribeToConversation } from "./features/messaging/service";
+import { createDirectConversation, listMessages, sendMessage as sendRemoteMessage, subscribeToConversation, uploadMessageMedia } from "./features/messaging/service";
 import { createStory as createRemoteStory, uploadStoryMedia } from "./features/stories/service";
 import { blockUser as blockRemoteUser, unblockUser as unblockRemoteUser } from "./features/moderation/service";
 
@@ -491,7 +491,7 @@ function Chat() {
       {messages.map((message, index) => <div key={message.id} className={`flex ${index % 2 ? "justify-end" : "justify-start"}`}><p className={`max-w-[78%] px-4 py-3 rounded-2xl text-sm ${index % 2 ? "rounded-br-md text-white" : "rounded-bl-md bg-white/[.08] text-white/80"}`} style={index % 2 ? { background: GRADIENT } : undefined}>{message.body}</p></div>)}
     </div>
     <form onSubmit={submit} className="flex gap-2 items-center p-3 border-t border-white/10 glass pb-safe">
-      <input ref={setAttachment} type="file" accept="image/*" className="hidden" onChange={(event) => { if (event.target.files?.[0]) { showToast("Media messaging upload is ready"); } }} />
+      <input ref={setAttachment} type="file" accept="image/*,audio/*" className="hidden" onChange={(event) => { const file=event.target.files?.[0]; if(!file||!conversationId)return; void (async()=>{ const uploaded=await uploadMessageMedia(file); if(uploaded.error||!uploaded.path){showToast(uploaded.error?.message||"Media upload failed");return;} const kind=file.type.startsWith("audio/")?"audio":"image"; const sent=await sendRemoteMessage(conversationId,kind,undefined,uploaded.path); if(sent.error)showToast(sent.error.message||"Message failed"); else showToast("Media sent"); })(); }} />
       <button type="button" aria-label="Attach" onClick={() => attachment?.click()}><Paperclip size={20} className="text-white/50" /></button>
       <input value={text} onChange={(event) => setText(event.target.value)} placeholder="Write a message" className="flex-1 bg-white/[.06] rounded-full px-4 py-3 text-sm outline-none placeholder:text-white/35" />
       <button aria-label="Send" className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: text.trim() ? GRADIENT : "rgba(255,255,255,.08)" }}><Send size={16} /></button>
