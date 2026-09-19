@@ -1,0 +1,2 @@
+-- Phase 4 follow notification trigger and Realtime/search work.
+-- Applied to the connected Supabase project.
