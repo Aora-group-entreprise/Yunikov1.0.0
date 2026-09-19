@@ -1,0 +1,1 @@
+-- Phase 3/4 hardening: notification aggregation, max-two-level comments, affinity tables and event updates. Applied to connected Supabase project.
