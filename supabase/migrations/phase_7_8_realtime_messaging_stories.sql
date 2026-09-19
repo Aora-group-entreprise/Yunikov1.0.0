@@ -1,0 +1,4 @@
+-- Phase 7 + 8 source record
+-- Applied directly to Supabase project pqjrmtkfgwoocbvmwbby.
+-- Covers messaging RLS, DM creation/read functions, Realtime publication,
+-- story lifecycle, story views, private media buckets, and conversation timestamps.
