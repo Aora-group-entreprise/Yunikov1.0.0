@@ -11,7 +11,7 @@ import {
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Router, Route, Switch, useLocation, useParams } from "wouter";
+import { Router, Route, Switch, useLocation, useParams } from "./lib/router-compat";
 import {
   Archive,
   ArrowLeft,
