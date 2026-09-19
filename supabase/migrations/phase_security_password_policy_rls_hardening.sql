@@ -8,6 +8,6 @@
 -- RLS hardening:
 -- * conversations are readable only by members
 -- * conversation_members are readable/inserable only for the current legacy user
--- * create_dm is SECURITY DEFINER with an explicit authenticated-user check
--- * post_stats and post_distribution are no longer globally readable
--- * get_ranked_feed uses controlled SECURITY DEFINER access and validates auth.uid()
+-- * post_stats and post_distribution are not directly readable by arbitrary users
+-- * privileged feed/DM implementations live in the non-exposed private schema
+-- * public RPC wrappers are SECURITY INVOKER and restricted to authenticated users
