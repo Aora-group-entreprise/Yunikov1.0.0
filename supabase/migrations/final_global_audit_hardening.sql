@@ -1,0 +1,11 @@
+-- Final database hardening performed during the Yuniko global audit.
+-- Supabase project: pqjrmtkfgwoocbvmwbby
+-- Applied directly before this record was added.
+--
+-- Changes:
+-- 1. Removed exact duplicate indexes.
+-- 2. Added covering indexes for unindexed foreign keys.
+-- 3. Split legacy ALL RLS policies into operation-specific policies so SELECT
+--    does not have multiple permissive policies.
+-- 4. Removed redundant deny policy that was contributing to multiple permissive
+--    SELECT policies.
