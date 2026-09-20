@@ -3,12 +3,7 @@ name: Yuniko audit build
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - pnpm-lock.yaml
   workflow_dispatch:
-
-permissions:
-  contents: write
 
 jobs:
   build:
@@ -25,17 +20,6 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - name: Synchronize lockfile
-        working-directory: .
-        run: |
-          pnpm install --no-frozen-lockfile
-          if ! git diff --quiet -- pnpm-lock.yaml; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add pnpm-lock.yaml
-            git commit -m "chore: synchronize pnpm lockfile"
-            git push
-          fi
       - run: pnpm install --frozen-lockfile
         working-directory: .
       - run: pnpm run test:unit
