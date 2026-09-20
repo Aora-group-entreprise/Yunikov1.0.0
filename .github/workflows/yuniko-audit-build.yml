@@ -24,3 +24,5 @@ jobs:
         working-directory: .
       - run: pnpm run test:unit
       - run: pnpm run build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm run test:e2e
