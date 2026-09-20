@@ -88,3 +88,15 @@ $$;
 
 revoke execute on function private.get_ranked_feed(uuid,text,integer) from public,anon,authenticated;
 revoke execute on function private.evaluate_post_distribution() from public,anon,authenticated;
+
+create or replace function public.record_login_event(p_user_agent text default null,p_country text default null,p_is_new_device boolean default false)
+returns void language plpgsql security definer set search_path=''
+as $$
+begin
+ if (select auth.uid()) is null then raise exception 'Authentication required'; end if;
+ insert into yunikov_v1.login_events(user_id,user_agent,country,is_new_device)
+ values((select auth.uid()),left(coalesce(p_user_agent,''),500),left(coalesce(p_country,''),16),coalesce(p_is_new_device,false));
+end;
+$$;
+revoke execute on function public.record_login_event(text,text,boolean) from public,anon;
+grant execute on function public.record_login_event(text,text,boolean) to authenticated;
