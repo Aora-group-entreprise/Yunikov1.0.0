@@ -20,14 +20,26 @@ export async function createPost(userId:string,input:CreatePostInput & {mediaFil
 export async function getHomeFeed(){
  const client=requireSupabase(); const {data:{user}}=await client.auth.getUser(); if(!user)return{data:null,error:new Error("Authentication required")};
  const profile=await client.from("profiles").select("country_code").eq("id",user.id).maybeSingle(); const country=profile.data?.country_code??null;
- const result=await client.rpc("get_ranked_feed",{p_user:user.id,p_country:country,p_limit:20}); if(result.error)return{data:null,error:result.error};
+  const result=await client.rpc("get_ranked_feed",{p_user:user.id,p_country:country,p_limit:20});
+  if(result.error) return listFeed();
  const rows=(result.data??[]) as Array<PostRow & {feed_score?:number}>; const paths=rows.map(r=>r.media_url).filter((v):v is string=>Boolean(v));
  const signed=paths.length?await client.storage.from("post-media").createSignedUrls(paths,3600):{data:[],error:null}; const urls=new Map((signed.data??[]).map(item=>[item.path,item.signedUrl]));
  void Promise.all(rows.map(row=>client.rpc("mark_feed_seen",{p_post_id:row.id}))); void Promise.all(rows.map(row=>client.from("events").insert({user_id:user.id,post_id:row.id,type:"impression",weight:1,country_code:country})));
  return{data:rows.map(row=>({...row,hashtags:parseHashtags(row.hashtags),media_url:row.media_url?urls.get(row.media_url)??row.media_url:null})) as unknown as PostRow[],error:signed.error??null};
 }
 
-export const listFeed = getHomeFeed;
+export async function listFeed(){
+  const client=requireSupabase();
+  const result=await client.from("posts")
+    .select("id,user_id,author_id,caption,media_url,media_type,location,hashtags,visibility,status,likes,comments,shares,saves,views,created_at,deleted_at")
+    .eq("status","ready").is("deleted_at",null).order("created_at",{ascending:false}).limit(50);
+  if(result.error)return{data:null,error:result.error};
+  const rows=(result.data??[]) as unknown as PostRow[];
+  const paths=rows.map(row=>row.media_url).filter((value):value is string=>Boolean(value));
+  const signed=paths.length?await client.storage.from("post-media").createSignedUrls(paths,3600):{data:[],error:null};
+  const urls=new Map((signed.data??[]).map(item=>[item.path,item.signedUrl]));
+  return{data:rows.map(row=>({...row,media_url:row.media_url?urls.get(row.media_url)??row.media_url:null,hashtags:parseHashtags(row.hashtags)})) as unknown as PostRow[],error:signed.error??null};
+}
 
 export async function softDeletePost(userId:string,postId:number){
  const client=requireSupabase(); const result=await client.from("posts").update({deleted_at:new Date().toISOString(),status:"deleted"}).eq("id",postId).eq("author_id",userId).select("id,media_url").single(); if(!result.error)await client.from("events").insert({user_id:userId,post_id:postId,type:"post.deleted",weight:1}); return result;
