@@ -100,3 +100,20 @@ end;
 $$;
 revoke execute on function public.record_login_event(text,text,boolean) from public,anon;
 grant execute on function public.record_login_event(text,text,boolean) to authenticated;
+
+-- Harden login-event writes without a SECURITY DEFINER API function.
+alter table yunikov_v1.login_events enable row level security;
+drop policy if exists login_events_self_insert on yunikov_v1.login_events;
+create policy login_events_self_insert on yunikov_v1.login_events for insert to authenticated with check (user_id=(select auth.uid()));
+drop policy if exists login_events_self_select on yunikov_v1.login_events;
+create policy login_events_self_select on yunikov_v1.login_events for select to authenticated using (user_id=(select auth.uid()));
+grant usage on schema yunikov_v1 to authenticated;
+grant insert,select on yunikov_v1.login_events to authenticated;
+create or replace function public.record_login_event(p_user_agent text default null,p_country text default null,p_is_new_device boolean default false)
+returns void language sql security invoker set search_path=''
+as $$
+ insert into yunikov_v1.login_events(user_id,user_agent,country,is_new_device)
+ values((select auth.uid()),left(coalesce(p_user_agent,''),500),left(coalesce(p_country,''),16),coalesce(p_is_new_device,false));
+$$;
+revoke execute on function public.record_login_event(text,text,boolean) from public,anon;
+grant execute on function public.record_login_event(text,text,boolean) to authenticated;
