@@ -1,4 +1,5 @@
-import { HeadContent, Outlet, Scripts, createRootRoute } from "@tanstack/react-router";
+import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router";
+import App from "../App";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "../query-client";
 
@@ -19,7 +20,7 @@ function RootDocument() {
       <head><HeadContent /></head>
       <body>
         <QueryClientProvider client={queryClient}>
-          <Outlet />
+          <App />
         </QueryClientProvider>
         <Scripts />
       </body>
