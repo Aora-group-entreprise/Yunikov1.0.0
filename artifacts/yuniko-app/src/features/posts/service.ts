@@ -2,7 +2,7 @@ import { requireSupabase } from "../../lib/supabase";
 import { createPostSchema, type CreatePostInput } from "./schemas";
 import type { PostRow } from "./types";
 
-function parseHashtags(v:string|null){if(!v)return [];try{const p=JSON.parse(v);return Array.isArray(p)?p.map(String):v.split(/\\s+/).filter(Boolean)}catch{return v.split(/\\s+/).filter(Boolean)}}
+function parseHashtags(v:string|null){if(!v)return [];try{const p=JSON.parse(v);return Array.isArray(p)?p.map(String):v.split(/\s+/).filter(Boolean)}catch{return v.split(/\s+/).filter(Boolean)}}
 
 export async function uploadPostMedia(userId:string,file:File){
   const client=requireSupabase();
