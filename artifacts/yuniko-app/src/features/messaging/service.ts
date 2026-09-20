@@ -9,8 +9,19 @@ export async function uploadMessageMedia(file:File){
 
 export type MessageRow={id:number;conversation_id:number;sender_id:number;kind:string;body:string|null;media_url:string|null;duration_ms:number|null;delivered_at:string|null;read_at:string|null;created_at:string};
 
-export async function createDirectConversation(otherUserId:number){
- const client=requireSupabase(); return client.rpc("create_dm",{p_other_user:otherUserId});
+export async function resolveLegacyUserId(userId:string|number){
+  const numericId=typeof userId==="number"?userId:Number(userId);
+  if(Number.isSafeInteger(numericId)&&numericId>0)return {data:numericId,error:null};
+  const client=requireSupabase();
+  const {data,error}=await client.from("users").select("id").eq("auth_user_id",String(userId)).single<{id:number}>();
+  return {data:data?.id??null,error:error??(data?null:new Error("User account is unavailable"))};
+}
+
+export async function createDirectConversation(otherUserId:string|number){
+  const client=requireSupabase();
+  const resolved=await resolveLegacyUserId(otherUserId);
+  if(resolved.error||resolved.data===null)return {data:null,error:resolved.error??new Error("User account is unavailable")};
+  return client.rpc("create_dm",{p_other_user:resolved.data});
 }
 export async function listConversations(){
  const client=requireSupabase(); const {data:{user}}=await client.auth.getUser(); if(!user)return{data:null,error:new Error("Authentication required")};
