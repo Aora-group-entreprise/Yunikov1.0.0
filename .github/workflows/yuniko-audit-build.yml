@@ -22,4 +22,5 @@ jobs:
           cache: pnpm
       - run: pnpm install --no-frozen-lockfile
         working-directory: .
+      - run: pnpm run test:unit
       - run: pnpm run build
