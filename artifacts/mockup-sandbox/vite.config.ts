@@ -32,8 +32,6 @@ export default defineConfig({
     mockupPreviewPlugin(),
     react(),
     tailwindcss(),
-        ]
-      : []),
   ],
   resolve: {
     alias: {
