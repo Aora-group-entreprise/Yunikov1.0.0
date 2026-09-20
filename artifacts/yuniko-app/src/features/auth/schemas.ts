@@ -10,12 +10,11 @@ const strongPassword = z
   .regex(/[^A-Za-z0-9]/, "Le mot de passe doit contenir un symbole.");
 
 export const signInSchema = z.object({
-  email: z.string().email(),
+  username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_.]+$/),
   password: z.string().min(1),
 });
 
 export const signUpSchema = z.object({
-  email: z.string().email(),
   username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_.]+$/),
   displayName: z.string().min(1).max(80),
   password: strongPassword,
