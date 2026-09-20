@@ -27,6 +27,18 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    reportCompressedSize: false,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id === "react" || id === "react-dom") return undefined;
+          if (id.includes("framer-motion")) return "animation";
+          if (id.includes("lucide-react")) return "icons";
+          if (id.includes("@supabase/supabase-js")) return "supabase";
+          return undefined;
+        },
+      },
+    },
   },
   server: {
     port,
